@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { Commission } from '../types';
-import { X, Sparkles, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Sparkles, MessageCircle, ChevronLeft, ChevronRight, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
 import { ProgressBar } from './ProgressBar';
 import { generateClientUpdate, suggestWorkPlan } from '../services/geminiService';
 import { StatusBadge } from './StatusBadge';
@@ -17,6 +18,7 @@ export const CommissionDetail: React.FC<Props> = ({ commission, isAdmin, onClose
   const [aiResult, setAiResult] = useState<string>('');
   const [loadingAi, setLoadingAi] = useState(false);
   const [activeImgIdx, setActiveImgIdx] = useState(0);
+  const [selectedProgressImg, setSelectedProgressImg] = useState<string | null>(null);
 
   const imageUrls = commission.imageUrls || (commission.thumbnailUrl ? [commission.thumbnailUrl] : []);
 
@@ -41,40 +43,49 @@ export const CommissionDetail: React.FC<Props> = ({ commission, isAdmin, onClose
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
       <div className="bg-white rounded-[2.5rem] w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] shadow-2xl animate-in zoom-in-95 duration-300">
         
-        {/* Image Showcase */}
-        <div className="relative h-64 sm:h-80 bg-stone-100 flex items-center justify-center overflow-hidden group">
-            {imageUrls.length > 0 ? (
-                <>
-                  <img src={imageUrls[activeImgIdx]} alt={commission.title} className="w-full h-full object-contain" />
-                  {imageUrls.length > 1 && (
-                    <>
-                      <button onClick={prevImg} className="absolute left-4 p-2 bg-white/20 hover:bg-white/80 rounded-full text-white hover:text-stone-800 transition backdrop-blur-md">
-                        <ChevronLeft size={24} />
-                      </button>
-                      <button onClick={nextImg} className="absolute right-4 p-2 bg-white/20 hover:bg-white/80 rounded-full text-white hover:text-stone-800 transition backdrop-blur-md">
-                        <ChevronRight size={24} />
-                      </button>
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1">
-                        {imageUrls.map((_, i) => (
-                          <div key={i} className={`h-1.5 rounded-full transition-all ${i === activeImgIdx ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </>
-            ) : (
-                <div className="text-stone-300 flex flex-col items-center">
-                    <Sparkles size={48} />
-                    <span className="mt-2 text-sm">無參考圖</span>
-                </div>
-            )}
-            <button onClick={onClose} className="absolute top-4 right-4 bg-white/80 hover:bg-white text-stone-600 p-2 rounded-full shadow-lg transition z-10">
-                <X size={20} />
+        {/* Image Showcase - Only shown to Admin */}
+        {isAdmin ? (
+          <div className="relative h-64 sm:h-80 bg-stone-100 flex items-center justify-center overflow-hidden group">
+              {imageUrls.length > 0 ? (
+                  <>
+                    <img src={imageUrls[activeImgIdx]} alt={commission.title} className="w-full h-full object-contain" />
+                    {imageUrls.length > 1 && (
+                      <>
+                        <button onClick={prevImg} className="absolute left-4 p-2 bg-white/20 hover:bg-white/80 rounded-full text-white hover:text-stone-800 transition backdrop-blur-md">
+                          <ChevronLeft size={24} />
+                        </button>
+                        <button onClick={nextImg} className="absolute right-4 p-2 bg-white/20 hover:bg-white/80 rounded-full text-white hover:text-stone-800 transition backdrop-blur-md">
+                          <ChevronRight size={24} />
+                        </button>
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1">
+                          {imageUrls.map((_, i) => (
+                            <div key={i} className={`h-1.5 rounded-full transition-all ${i === activeImgIdx ? 'w-4 bg-white' : 'w-1.5 bg-white/50'}`} />
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </>
+              ) : (
+                  <div className="text-stone-300 flex flex-col items-center">
+                      <Sparkles size={48} />
+                      <span className="mt-2 text-sm">無參考圖</span>
+                  </div>
+              )}
+              <button onClick={onClose} className="absolute top-4 right-4 bg-white/80 hover:bg-white text-stone-600 p-2 rounded-full shadow-lg transition z-10">
+                  <X size={20} />
+              </button>
+              <div className="absolute top-4 left-4">
+                   <StatusBadge status={commission.status} />
+              </div>
+          </div>
+        ) : (
+          <div className="p-6 border-b border-stone-50 flex items-center justify-between">
+            <StatusBadge status={commission.status} />
+            <button onClick={onClose} className="p-2 hover:bg-stone-50 rounded-full transition text-stone-300">
+              <X size={20} />
             </button>
-            <div className="absolute top-4 left-4">
-                 <StatusBadge status={commission.status} />
-            </div>
-        </div>
+          </div>
+        )}
 
         <div className="p-8 overflow-y-auto hide-scrollbar">
             <div className="flex justify-between items-start mb-6">
@@ -95,6 +106,35 @@ export const CommissionDetail: React.FC<Props> = ({ commission, isAdmin, onClose
                 <h3 className="text-xs font-bold text-stone-300 uppercase mb-4 tracking-widest">進度狀態回報</h3>
                 <ProgressBar currentStatus={commission.status} />
             </div>
+
+            {/* Current Progress Section - Visible to Both */}
+            {(commission.currentProgress || (commission.progressImageUrls && commission.progressImageUrls.length > 0)) && (
+              <div className="bg-sky-50 p-6 rounded-[2rem] border border-sky-100 mb-8 animate-in fade-in slide-in-from-bottom-2">
+                <h3 className="flex items-center gap-2 font-bold text-sky-700 mb-4 text-sm tracking-widest uppercase">
+                  <CheckCircle2 size={16} className="text-sky-500" /> 最新製作進度
+                </h3>
+                
+                {commission.currentProgress && (
+                  <p className="text-sky-900 text-sm leading-relaxed mb-4 whitespace-pre-wrap font-medium">
+                    {commission.currentProgress}
+                  </p>
+                )}
+
+                {commission.progressImageUrls && commission.progressImageUrls.length > 0 && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+                    {commission.progressImageUrls.map((url, idx) => (
+                      <div 
+                        key={idx} 
+                        className="aspect-square rounded-xl overflow-hidden border-2 border-white shadow-sm cursor-pointer hover:opacity-90 transition"
+                        onClick={() => setSelectedProgressImg(url)}
+                      >
+                        <img src={url} alt={`progress-${idx}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="bg-[#FAF8F5] p-6 rounded-[2rem] border border-[#EFEBE9] mb-8">
                 <h3 className="text-xs font-bold text-stone-400 mb-2 uppercase tracking-widest">需求描述詳情</h3>
@@ -143,6 +183,23 @@ export const CommissionDetail: React.FC<Props> = ({ commission, isAdmin, onClose
             )}
         </div>
       </div>
+
+      {/* Progress Image Fullscreen Preview */}
+      {selectedProgressImg && (
+        <div 
+          className="fixed inset-0 z-[110] bg-black/90 flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setSelectedProgressImg(null)}
+        >
+          <button className="absolute top-6 right-6 text-white/50 hover:text-white transition">
+            <X size={32} />
+          </button>
+          <img 
+            src={selectedProgressImg} 
+            alt="Full progress" 
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" 
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+
+import React, { useState, useMemo, useEffect } from 'react';
 import { Commission, CommissionStatus, ThemeMode } from './types';
 import { useCommissionStore } from './hooks/useCommissionStore';
 import { useProductStore } from './hooks/useProductStore';
@@ -16,7 +17,7 @@ import { EditCommissionModal } from './components/EditCommissionModal';
 import { GalleryManagerModal } from './components/GalleryManagerModal';
 import { Lock, Unlock, ShoppingBag, Search, ArrowRight, Gift } from 'lucide-react';
 import { auth } from './firebase';
-import { signInAnonymously } from 'firebase/auth';
+import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
 const DiscordIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -62,6 +63,7 @@ const { showcaseItems, addShowcaseItem, removeShowcaseItem } = useShopStore();
 
 const [appView, setAppView] = useState<'home' | 'tracker' | 'commission_form' | 'nocy_shop'>('home');
 const [viewMode, setViewMode] = useState<ThemeMode>('client');
+const [adminType, setAdminType] = useState<'nocy' | 'general' | null>(null);
 const [searchTerm, setSearchTerm] = useState('');
 const [statusFilter, setStatusFilter] = useState<CommissionStatus | 'All'>('All');
 const [isAddingModalOpen, setIsAddingModalOpen] = useState(false);
@@ -72,14 +74,37 @@ const [editingCommission, setEditingCommission] = useState<Commission | null>(nu
 const [isLoggingIn, setIsLoggingIn] = useState(false);
 const [formConfig, setFormConfig] = useState<{title: string, subtitle?: string}>({ title: '委託申請單' });
 
+// Remove loading screen on mount
+useEffect(() => {
+  const loading = document.getElementById('app-loading');
+  if (loading) {
+    loading.style.opacity = '0';
+    setTimeout(() => loading.remove(), 500);
+  }
+}, []);
+
+// Ensure anonymous auth for clients to allow image uploads
+useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (!user) {
+            signInAnonymously(auth).catch((error) => {
+                console.error("Anonymous auth failed", error);
+            });
+        }
+    });
+    return () => unsubscribe();
+}, []);
+
 const handleLogin = async (pw: string) => {
-    if (pw === '0000') {
+    let type: 'nocy' | 'general' | null = null;
+    if (pw === '小餅暹羅') type = 'nocy';
+    else if (pw === '斂財暹羅') type = 'general';
+    else if (pw === '0000') type = 'nocy'; // 舊密碼相容
+
+    if (type) {
       setIsLoggingIn(true);
-      try {
-        await signInAnonymously(auth);
-      } catch (e) {
-        console.warn("Auth warning: Proceeding without Firebase Auth", e);
-      }
+      // Already signed in anonymously via useEffect, just setting local admin state
+      setAdminType(type);
       setCurrentArtist('暹羅');
       setIsLoggingIn(false);
     } else {
@@ -87,7 +112,11 @@ const handleLogin = async (pw: string) => {
     }
 };
 
-const handleLogout = () => setCurrentArtist('');
+const handleLogout = () => {
+  setCurrentArtist('');
+  setAdminType(null);
+  // Do not sign out from firebase, keep anonymous session for client view
+};
 const handleNavigateToHome = () => { setAppView('home'); setViewMode('client'); setSearchTerm(''); setStatusFilter('All'); };
 const toggleViewMode = () => viewMode === 'client' ? (setAppView('tracker'), setViewMode('admin')) : setViewMode('client');
 
@@ -100,12 +129,31 @@ const handleNavigateToGeneralOrder = () => {
     setAppView('commission_form');
 };
 
-const filteredCommissions = useMemo(() => commissions.filter(c => (searchTerm === '' || c.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || c.title.toLowerCase().includes(searchTerm.toLowerCase())) && (statusFilter === 'All' || c.status === statusFilter)), [commissions, searchTerm, statusFilter]);
-const stats = useMemo(() => ({
-queue: commissions.filter(c => [CommissionStatus.APPLYING, CommissionStatus.DISCUSSION, CommissionStatus.DEPOSIT_PAID, CommissionStatus.QUEUED].includes(c.status)).length,
-active: commissions.filter(c => c.status === CommissionStatus.IN_PRODUCTION).length,
-done: commissions.filter(c => [CommissionStatus.COMPLETED, CommissionStatus.SHIPPED].includes(c.status)).length
-}), [commissions]);
+const filteredCommissions = useMemo(() => {
+  return commissions.filter(c => {
+    // 關鍵搜尋
+    const matchesSearch = (searchTerm === '' || c.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || c.title.toLowerCase().includes(searchTerm.toLowerCase()));
+    // 狀態過濾
+    const matchesStatus = (statusFilter === 'All' || c.status === statusFilter);
+    // 來源過濾 (僅在管理員模式下生效)
+    const matchesSource = (viewMode === 'client' || !adminType || c.source === adminType);
+    
+    return matchesSearch && matchesStatus && matchesSource;
+  });
+}, [commissions, searchTerm, statusFilter, viewMode, adminType]);
+
+const stats = useMemo(() => {
+  // 如果是管理員，統計數據也應根據後台類型過濾
+  const baseCommissions = (viewMode === 'admin' && adminType) 
+    ? commissions.filter(c => c.source === adminType) 
+    : commissions;
+
+  return {
+    queue: baseCommissions.filter(c => [CommissionStatus.APPLYING, CommissionStatus.DISCUSSION, CommissionStatus.DEPOSIT_PAID, CommissionStatus.QUEUED].includes(c.status)).length,
+    active: baseCommissions.filter(c => c.status === CommissionStatus.IN_PRODUCTION).length,
+    done: baseCommissions.filter(c => [CommissionStatus.COMPLETED, CommissionStatus.SHIPPED_LOCALLY].includes(c.status)).length
+  };
+}, [commissions, viewMode, adminType]);
 
 const isAdminView = viewMode === 'admin';
 const showLogin = isAdminView && !currentArtist;
@@ -123,7 +171,7 @@ return (
 )}
 {appView === 'tracker' && (showLogin ? <LoginScreen onLogin={handleLogin} isLoading={isLoggingIn} /> : (
 <div className="animate-in fade-in duration-500">
-<DashboardStats stats={stats} viewMode={viewMode} artistName={currentArtist} />
+<DashboardStats stats={stats} viewMode={viewMode} artistName={adminType === 'general' ? '斂財暹羅' : '餅舖店主暹羅'} />
 <CommissionControls 
   searchTerm={searchTerm} 
   onSearchTermChange={setSearchTerm} 
@@ -131,17 +179,26 @@ return (
   onStatusFilterChange={setStatusFilter} 
   viewMode={viewMode} 
   onAddClick={() => setIsAddingModalOpen(true)} 
-  onManageProductsClick={() => setIsProductManagerOpen(true)}
+  onManageProductsClick={adminType === 'general' ? () => setIsProductManagerOpen(true) : undefined}
   onManageGalleryClick={() => setIsGalleryManagerOpen(true)}
 />
-<CommissionList commissions={filteredCommissions} viewMode={viewMode} searchTerm={searchTerm} onUpdateStatus={updateCommissionStatus} onDelete={deleteCommission} onEdit={setEditingCommission} />
+<CommissionList 
+  commissions={filteredCommissions} 
+  viewMode={viewMode} 
+  searchTerm={searchTerm} 
+  onUpdateStatus={updateCommissionStatus} 
+  onUpdate={updateCommission}
+  onDelete={deleteCommission} 
+  onEdit={setEditingCommission} 
+/>
 </div>
 ))}
 {appView === 'commission_form' && (
     <CommissionForm 
         onNavigateHome={handleNavigateToHome} 
         productOptions={productOptions} 
-        onAddCommission={(data) => { addCommission({...data, artistId: '暹羅'}); setAppView('tracker'); }} 
+        onAddCommission={async (data) => { await addCommission({...data, artistId: '暹羅', source: 'general'}); }} 
+        onComplete={() => setAppView('tracker')}
         customTitle={formConfig.title}
         customSubtitle={formConfig.subtitle}
     />
@@ -150,15 +207,16 @@ return (
     <NocyShop
         onNavigateHome={handleNavigateToHome}
         productOptions={productOptions}
-        onAddCommission={(data) => { addCommission({...data, artistId: '暹羅'}); setAppView('tracker'); }}
+        onAddCommission={async (data) => { await addCommission({...data, artistId: '暹羅', source: 'nocy'}); }}
+        onComplete={() => setAppView('tracker')}
         showcaseItems={showcaseItems}
     />
 )}
 </div>
 <div className="mt-20 pt-10 border-t border-stone-100 flex flex-col items-center">
-<button onClick={toggleViewMode} className="flex items-center gap-2 text-stone-300 hover:text-stone-500 transition-colors font-bold text-xs" title={isAdminView ? '切換至委託者視角' : '暹羅開門'}>{isAdminView ? <Unlock size={14} /> : <Lock size={14} />}</button>
+<button onClick={toggleViewMode} className="flex items-center gap-2 text-stone-300 hover:text-stone-500 transition-colors font-bold text-xs" title={isAdminView ? '切換至委託者視視角' : '暹羅開門'}>{isAdminView ? <Unlock size={14} /> : <Lock size={14} />}</button>
 </div>
-<AddCommissionModal isOpen={isAddingModalOpen} onClose={() => setIsAddingModalOpen(false)} onAdd={(data) => addCommission({...data, artistId: '暹羅'})} productOptions={productOptions} />
+<AddCommissionModal isOpen={isAddingModalOpen} onClose={() => setIsAddingModalOpen(false)} onAdd={(data) => addCommission({...data, artistId: '暹羅', source: adminType || 'nocy'})} productOptions={productOptions} />
 <ProductManagerModal isOpen={isProductManagerOpen} onClose={() => setIsProductManagerOpen(false)} productOptions={productOptions} onSave={updateProductOptions} />
 <GalleryManagerModal isOpen={isGalleryManagerOpen} onClose={() => setIsGalleryManagerOpen(false)} items={showcaseItems} onAdd={addShowcaseItem} onRemove={removeShowcaseItem} />
 <EditCommissionModal isOpen={!!editingCommission} onClose={() => setEditingCommission(null)} commission={editingCommission} onSave={updateCommission} />

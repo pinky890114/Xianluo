@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { ProductOptions, ShowcaseItem } from '../types';
 import { CommissionForm } from './CommissionForm';
@@ -7,7 +8,8 @@ interface Props {
   onNavigateHome: () => void;
   productOptions: ProductOptions;
   showcaseItems?: ShowcaseItem[];
-  onAddCommission: (data: any) => void;
+  onAddCommission: (data: any) => Promise<void>; // Change to Promise
+  onComplete: () => void; // New prop for navigation after success
 }
 
 type ShopTab = 'intro' | 'showcase' | 'order' | 'supplies';
@@ -20,7 +22,7 @@ interface SupplyItem {
   description: string;
 }
 
-export const NocyShop: React.FC<Props> = ({ onNavigateHome, productOptions, onAddCommission, showcaseItems = [] }) => {
+export const NocyShop: React.FC<Props> = ({ onNavigateHome, productOptions, onAddCommission, onComplete, showcaseItems = [] }) => {
   const [activeTab, setActiveTab] = useState<ShopTab>('intro');
   const [orderStep, setOrderStep] = useState<OrderStep>('tos');
   const [selectedSupply, setSelectedSupply] = useState<SupplyItem | null>(null);
@@ -264,7 +266,14 @@ export const NocyShop: React.FC<Props> = ({ onNavigateHome, productOptions, onAd
                 {/* Step 3: Form */}
                 {orderStep === 'form' && (
                     <div className="animate-in fade-in slide-in-from-bottom-8 duration-500">
-                        <CommissionForm onNavigateHome={() => setOrderStep('workflow')} productOptions={productOptions} onAddCommission={onAddCommission} customTitle="Nocy 餅舖委託單" customSubtitle="請詳細填寫您的小餅需求"/>
+                        <CommissionForm 
+                            onNavigateHome={() => setOrderStep('workflow')} 
+                            productOptions={productOptions} 
+                            onAddCommission={onAddCommission} 
+                            onComplete={onComplete}
+                            customTitle="Nocy 餅舖委託單" 
+                            customSubtitle="請詳細填寫您的小餅需求"
+                        />
                     </div>
                 )}
             </div>

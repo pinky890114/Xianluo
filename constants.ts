@@ -1,13 +1,24 @@
+
+
 import { CommissionStatus, ProductOptions } from './types';
 
 export const STATUS_STEPS = [
-  CommissionStatus.APPLYING, 
-  CommissionStatus.DISCUSSION, 
+  CommissionStatus.APPLYING,
+  CommissionStatus.DISCUSSION,
   CommissionStatus.DEPOSIT_PAID,
-  CommissionStatus.QUEUED, 
-  CommissionStatus.IN_PRODUCTION, 
-  CommissionStatus.COMPLETED, 
-  CommissionStatus.SHIPPED,
+  CommissionStatus.QUEUED,
+  CommissionStatus.ESTABLISHED,
+  CommissionStatus.DRAFTING,
+  CommissionStatus.DRAFT_CHECK,
+  CommissionStatus.DRAFT_CONFIRMED,
+  CommissionStatus.IN_PRODUCTION,
+  CommissionStatus.PRODUCT_CHECK,
+  CommissionStatus.SHIPPED_BY_ARTIST,
+  CommissionStatus.WAREHOUSE_RECEIVED,
+  CommissionStatus.SHIPPING_INTL,
+  CommissionStatus.PACKING,
+  CommissionStatus.SHIPPED_LOCALLY,
+  CommissionStatus.COMPLETED,
 ];
 
 export const CATEGORY_ORDER = ['正方形', '長方形', '圓形', '異形', '徽章磚', '雙色磚'];

@@ -9,7 +9,7 @@ export const CommissionControls: React.FC<{
     onStatusFilterChange: (s: any) => void; 
     viewMode: ThemeMode; 
     onAddClick: () => void; 
-    onManageProductsClick: () => void;
+    onManageProductsClick?: () => void;
     onManageGalleryClick?: () => void; 
 }> = (props) => (
 
@@ -30,9 +30,11 @@ export const CommissionControls: React.FC<{
         <ImageIcon size={18} className="text-stone-600"/>
     </button>
 )}
-<button onClick={props.onManageProductsClick} className="p-2 border-2 rounded-full bg-white hover:bg-stone-50" title="管理商品設定">
-    <Settings size={18} className="text-stone-600"/>
-</button>
+{props.onManageProductsClick && (
+    <button onClick={props.onManageProductsClick} className="p-2 border-2 rounded-full bg-white hover:bg-stone-50" title="管理商品設定">
+        <Settings size={18} className="text-stone-600"/>
+    </button>
+)}
 <button onClick={props.onAddClick} className="bg-[#A1887F] px-4 py-2 rounded-full font-bold text-sm text-white hover:bg-[#8D6E63] transition-colors whitespace-nowrap">新增訂單</button>
 </>
 )}

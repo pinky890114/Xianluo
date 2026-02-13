@@ -5,6 +5,49 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>暹羅的賠錢生意</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<script>
+  // Polyfill for process.env
+  window.process = { 
+    env: { 
+      API_KEY: '', 
+      NODE_ENV: 'development' 
+    } 
+  };
+
+  // Global Error Handler
+  window.onerror = function(message, source, lineno, colno, error) {
+    console.error("Global Error:", message, error);
+    const errorContainer = document.getElementById('error-container');
+    const loading = document.getElementById('app-loading');
+    
+    // Only attempt to manipulate DOM if body is parsed and elements exist
+    if (loading) loading.style.display = 'none';
+    
+    if (errorContainer) {
+       errorContainer.style.display = 'flex';
+       const msgEl = document.getElementById('error-message');
+       if (msgEl) msgEl.textContent = message || '發生未知錯誤';
+    }
+  };
+
+  // Safety Timeout: If app doesn't load in 15 seconds, show error
+  setTimeout(() => {
+    const loading = document.getElementById('app-loading');
+    const root = document.getElementById('root');
+    // Check if app is still loading (loading visible) and root is empty
+    if (loading && loading.style.opacity !== '0' && (!root || root.childElementCount === 0)) {
+       const errorContainer = document.getElementById('error-container');
+       if (errorContainer) {
+         loading.style.display = 'none';
+         errorContainer.style.display = 'flex';
+         const msgEl = document.getElementById('error-message');
+         if (msgEl) {
+             msgEl.innerText = '連線逾時 (Connection Timeout)。\n請檢查您的網路連線，或嘗試重新整理。\n(如果持續發生，可能是瀏覽器版本過舊或防火牆阻擋)';
+         }
+       }
+    }
+  }, 15000);
+</script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Zen+Maru+Gothic:wght@400;500;700&display=swap');
 body { font-family: 'Zen Maru Gothic', 'Noto Sans TC', sans-serif; background-color: #fffbf7; color: #57534e; }
@@ -15,30 +58,57 @@ input, button, select, textarea { font-family: inherit; }
 ::-webkit-scrollbar-track { background: #f5f5f4; border-radius: 5px; }
 ::-webkit-scrollbar-thumb { background: #d7ccc8; border-radius: 5px; border: 2px solid #f5f5f4; }
 ::-webkit-scrollbar-thumb:hover { background: #a1887f; }
+
+/* Loading Animation */
+.loader {
+  width: 48px;
+  height: 48px;
+  border: 5px solid #EFEBE9;
+  border-bottom-color: #A1887F;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  animation: rotation 1s linear infinite;
+}
+@keyframes rotation {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
 </style>
 <script type="importmap">
 {
   "imports": {
-    "@google/genai": "https://esm.sh/@google/genai@^1.40.0",
-    "react-dom/client": "https://esm.sh/react-dom@^19.2.4/client",
-    "react-dom": "https://esm.sh/react-dom@^19.2.4",
-    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
-    "react": "https://esm.sh/react@^19.2.4",
-    "react/jsx-runtime": "https://esm.sh/react@^19.2.4/jsx-runtime",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "firebase/app": "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js",
-    "firebase/auth": "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js",
-    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js",
-    "firebase/storage": "https://www.gstatic.com/firebasejs/10.13.1/firebase-storage.js",
-    "firebase/": "https://esm.sh/firebase@^12.9.0/",
-    "react-router-dom": "https://esm.sh/react-router-dom@^7.13.0"
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+    "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react,react-dom",
+    "@google/genai": "https://esm.sh/@google/genai@0.1.1",
+    "firebase/app": "https://esm.sh/firebase@10.13.1/app",
+    "firebase/auth": "https://esm.sh/firebase@10.13.1/auth",
+    "firebase/firestore": "https://esm.sh/firebase@10.13.1/firestore",
+    "firebase/storage": "https://esm.sh/firebase@10.13.1/storage", 
   }
 }
 </script>
 </head>
 <body>
-<div id="root"></div>
-<script type="module" src="./index.tsx"></script>
+  <div id="root"></div>
+  
+  <!-- Loading State -->
+  <div id="app-loading" style="position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #fffbf7; z-index: 9999; transition: opacity 0.5s;">
+    <span class="loader"></span>
+    <p style="margin-top: 1rem; color: #8D6E63; font-weight: bold;">暹羅開門中...</p>
+  </div>
+
+  <!-- Error State (Hidden by default) -->
+  <div id="error-container" style="display: none; position: fixed; inset: 0; background-color: #fffbf7; z-index: 10000; padding: 2rem; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+    <h2 style="color: #5D4037; font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">網頁載入發生錯誤</h2>
+    <div style="background: #efebe9; padding: 1rem; border-radius: 1rem; margin-bottom: 2rem; max-width: 80%;">
+        <p id="error-message" style="color: #A1887F; font-family: monospace; word-break: break-all;"></p>
+    </div>
+    <button onclick="window.location.reload()" style="background: #5D4037; color: white; border: none; padding: 1rem 2rem; border-radius: 2rem; cursor: pointer; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">重新整理頁面</button>
+  </div>
+
+  <script type="module" src="./index.tsx"></script>
 </body>
 </html>

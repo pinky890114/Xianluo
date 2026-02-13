@@ -3,7 +3,7 @@ import { useCommissionStore } from '../hooks/useCommissionStore';
 import { CommissionDetail } from '../components/CommissionDetail';
 import { StatusBadge } from '../components/StatusBadge';
 import { Search, Sparkles } from 'lucide-react';
-import { Commission } from '../types';
+import { Commission, CommissionStatus } from '../types';
 
 export const ClientPortal = () => {
   const { commissions } = useCommissionStore();
@@ -14,6 +14,23 @@ export const ClientPortal = () => {
     c.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || 
     c.id.includes(searchTerm)
   ) : [];
+
+  // Define status groups for dashboard summary
+  const pendingStatuses = [
+    CommissionStatus.APPLYING,
+    CommissionStatus.DISCUSSION,
+    CommissionStatus.DEPOSIT_PAID,
+    CommissionStatus.QUEUED,
+  ];
+
+  const completedStatuses = [
+    CommissionStatus.SHIPPED_LOCALLY,
+    CommissionStatus.COMPLETED,
+  ];
+
+  // Helper to check if commission is in production/active state
+  const isProduction = (status: CommissionStatus) => 
+    !pendingStatuses.includes(status) && !completedStatuses.includes(status);
 
   return (
     <div className="min-h-screen bg-[#fbfaf8]">
@@ -45,15 +62,21 @@ export const ClientPortal = () => {
                  <h2 className="font-bold text-gray-700 mb-4">排單狀態一覽</h2>
                  <div className="grid grid-cols-3 gap-4 text-sm text-gray-500">
                     <div className="p-4 bg-gray-50 rounded-xl">
-                        <div className="text-2xl font-bold text-pink-500 mb-1">{commissions.filter(c => c.status === '申請中').length}</div>
-                        申請中
+                        <div className="text-2xl font-bold text-pink-500 mb-1">
+                          {commissions.filter(c => pendingStatuses.includes(c.status)).length}
+                        </div>
+                        申請/排單中
                     </div>
                     <div className="p-4 bg-gray-50 rounded-xl">
-                        <div className="text-2xl font-bold text-blue-500 mb-1">{commissions.filter(c => c.status === '製作中').length}</div>
-                        製作中
+                        <div className="text-2xl font-bold text-blue-500 mb-1">
+                          {commissions.filter(c => isProduction(c.status)).length}
+                        </div>
+                        製作/運輸中
                     </div>
                     <div className="p-4 bg-gray-50 rounded-xl">
-                        <div className="text-2xl font-bold text-green-500 mb-1">{commissions.filter(c => c.status === '製作完成').length}</div>
+                        <div className="text-2xl font-bold text-green-500 mb-1">
+                          {commissions.filter(c => completedStatuses.includes(c.status)).length}
+                        </div>
                         已完成
                     </div>
                  </div>
@@ -62,10 +85,7 @@ export const ClientPortal = () => {
          ) : (
             <div className="grid gap-4">
                 {filteredCommissions.map(c => (
-                    <div key={c.id} onClick={() => setSelectedCommission(c)} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer flex gap-4 items-center">
-                        <div className="w-20 h-20 bg-gray-100 rounded-xl overflow-hidden flex-shrink-0">
-                             {c.thumbnailUrl ? <img src={c.thumbnailUrl} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-300"><Sparkles size={20}/></div>}
-                        </div>
+                    <div key={c.id} onClick={() => setSelectedCommission(c)} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer flex gap-4 items-center">
                         <div className="flex-1">
                             <div className="flex justify-between items-start mb-1">
                                 <h3 className="font-bold text-gray-800">{c.title}</h3>
